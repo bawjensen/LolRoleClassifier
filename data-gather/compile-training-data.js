@@ -1,13 +1,11 @@
-var fs          = require('fs'),
+var csv         = require('csv-write-stream'),
+    fs          = require('fs'),
     globals     = require('./helpers/globalConstants'),
-    Heap        = require('heap'),
-    request     = require('request'),
-    promise     = require('./helpers/promisedFunctions'),
-    querystring = require('querystring');
+    promise     = require('./helpers/promisedFunctions');
 
 Array.prototype.extend = function (other_array) {
-    other_array.forEach(function(v) { this.push(v) }, this);    
-}
+    other_array.forEach(function(v) { this.push(v); }, this);    
+};
 
 function convertArrayToObject(runesOrMasteries) {
     var newObj = {};
@@ -23,6 +21,18 @@ function convertArrayToObject(runesOrMasteries) {
         
         newObj[runeOrMastery[key]] = runeOrMastery.rank;
     }
+
+    return newObj;
+}
+
+function flattenWithPrefixes(arrays) {
+    var newObj = {};
+
+    arrays.forEach(function(entry, i) {
+        for (var key in entry) {
+            newObj['p' + i + key] = entry[key];
+        }
+    });
 
     return newObj;
 }
@@ -98,6 +108,38 @@ function groupPurchases(buys) {
     return grouped;
 }
 
+function lanesAreProper(team) {
+    var flag = false;
+
+    var teamLanes = {};
+    teamLanes[TOP_LANE] = [];
+    teamLanes[JUNGLE_ROLE] = [];
+    teamLanes[MIDDLE_LANE] = [];
+    teamLanes[BOTTOM_LANE] = [];
+
+    var expectedAmounts = {};
+    expectedAmounts[TOP_LANE] = 1;
+    expectedAmounts[JUNGLE_ROLE] = 1;
+    expectedAmounts[MIDDLE_LANE] = 1;
+    expectedAmounts[BOTTOM_LANE] = 2;
+
+    var teamId = team[0].teamId;
+
+    team.forEach(function(participant) {
+        var lane = participant.timeline.lane = participant.timeline.lane.toLowerCase();
+
+        teamLanes[lane].push(participant);
+
+        if (teamLanes[lane].length > expectedAmounts[lane])
+            flag = true;
+    });
+
+    if (flag)
+        console.log('Odd:', JSON.stringify(Object.keys(teamLanes).map(function(role) { return [role, teamLanes[role].length]; })), '( team:', teamId === '100' ? 'blue' : 'red', ')');
+
+    return !flag;
+}
+
 function parseSkillsAndBuys(matchEntry) {
     matchEntry.timeline.frames.forEach(function handleFrame(frame, i) {
         if (!frame.events) return;
@@ -143,6 +185,19 @@ function parseSkillsAndBuys(matchEntry) {
     });
 }
 
+function parseTeams(matchEntry) {
+    matchEntry.teams = {};
+
+    matchEntry.participants.forEach(function(participant) {
+        var teamId = participant.teamId;
+
+        if (!(teamId in matchEntry.teams))
+            matchEntry.teams[teamId] = [];
+
+        matchEntry.teams[teamId].push(participant);
+    });
+}
+
 var MIDDLE_LANE = 'middle',
     JUNGLE_ROLE = 'jungle',
     TOP_LANE = 'top',
@@ -175,154 +230,6 @@ function checkIsSupport(participant) {
     return flag;
 }
 
-function compareHeapElements(a, b) {
-    return a.date - b.date;
-}
-
-function parseRoles(matchEntry) {
-    var teams = {};
-
-    matchEntry.participants.forEach(function(participant) {
-        var teamId = participant.teamId;
-        var lane = participant.timeline.lane = participant.timeline.lane.toLowerCase();
-        participant.timeline.role = participant.timeline.role.toLowerCase();
-
-        if (!(teamId in teams)) {
-            teams[teamId] = {};
-
-            teams[teamId][TOP_LANE] = [];
-            teams[teamId][JUNGLE_ROLE] = [];
-            teams[teamId][MIDDLE_LANE] = [];
-            teams[teamId][BOTTOM_LANE] = [];
-        }
-
-        teams[teamId][lane].push(participant);
-    });
-
-    var expectedAmounts = {};
-    expectedAmounts[TOP_LANE] = 1;
-    expectedAmounts[JUNGLE_ROLE] = 1;
-    expectedAmounts[MIDDLE_LANE] = 1;
-    expectedAmounts[BOTTOM_LANE] = 2;
-
-    var campedLanes = [TOP_LANE, MIDDLE_LANE, BOTTOM_LANE]; // Lanes often camped by jungler, might cause misclassification
-
-    Object.keys(teams).forEach(function(teamId) {
-        var team = teams[teamId];
-
-        // console.log('before:', JSON.stringify(Object.keys(team).map(function(role) { return [role, team[role].length]; })));
-
-        var flagged = false, // Flagging an issue with the team comp/lanes
-            fixed = false; // Flagging whether the issue was fixed
-
-        for (var lane in expectedAmounts) {
-            if (team[lane].length !== expectedAmounts[lane]) {
-                flagged = true;
-            }
-        }
-
-        // Set initial baseline roles
-        team[BOTTOM_LANE].forEach(function(botLaner) {
-            // console.log(botLaner.timeline.role);
-            botLaner.role = botLaner.timeline.role === 'duo' ?
-                (checkIsSupport(botLaner) ? SUPPORT_ROLE : ADC_ROLE) :
-                botLaner.timeline.role === 'duo_support' ?
-                    SUPPORT_ROLE :
-                    ADC_ROLE; // Note: defaults to ADC
-        });
-
-        team[MIDDLE_LANE].forEach(function(midLaner) { midLaner.role = MIDDLE_LANE; });
-        team[JUNGLE_ROLE].forEach(function(jungler) { jungler.role = JUNGLE_ROLE; });
-        team[TOP_LANE].forEach(function(topLaner) { topLaner.role = TOP_LANE; });
-
-
-        // Attempt simple fixes for normal lane mixups
-        if (flagged) {
-            // Fixing: a jungler camping botlane and getting misclassified
-            if (team[BOTTOM_LANE].length === 3 && team[JUNGLE_ROLE].length === 0) {
-                team[BOTTOM_LANE].forEach(function(botLaner, index) {
-                    // Check for junglers and supports because everything defaults to adc
-                    if (checkIsJungler(botLaner)) {
-                        botLaner.role = JUNGLE_ROLE;
-                        team[JUNGLE_ROLE].push(team[BOTTOM_LANE].splice(index, 1));
-                    }
-                    else if (checkIsSupport(botLaner)) {
-                        botLaner.role = SUPPORT_ROLE;
-                    }
-                });
-
-                fixed = true;
-            }
-
-            // Fixing: a likely lane swap
-            if (team[TOP_LANE].length === 2 && team[BOTTOM_LANE].length === 1 && team[MIDDLE_LANE].length === 1 && team[JUNGLE_ROLE].length === 1) {
-                // Swap top and bottom
-                var temp = team[BOTTOM_LANE];
-                team[BOTTOM_LANE] = team[TOP_LANE];
-                team[TOP_LANE] = temp;
-
-                // Reset roles
-                team[BOTTOM_LANE].forEach(function(botLaner) {
-                    botLaner.role = (botLaner.timeline.role === 'duo_carry') ? ADC_ROLE : SUPPORT_ROLE;
-                });
-                team[TOP_LANE].forEach(function(topLaner) { topLaner.role = TOP_LANE; });
-
-                fixed = true;
-            }
-
-            // Fixing: junglers camping a solo lane so much they're classified as a laner, or a solo laner roaming so much they're a jungler
-            campedLanes.forEach(function(campedLane) {
-                if ((team[campedLane].length === 2 && team[JUNGLE_ROLE].length === 0) || (team[campedLane].length === 0 && team[JUNGLE_ROLE].length === 2)) {
-                    var overloadedRole = team[campedLane].length === 2 ? campedLane : JUNGLE_ROLE;
-
-                    team[overloadedRole].forEach(function(laner, index) {
-                        laner.role = checkIsJungler(laner) ? JUNGLE_ROLE : campedLane;
-                        if (laner.role !== overloadedRole) {
-                            team[laner.role].push(team[overloadedRole].splice(index, 1));
-                        }
-                    });
-
-                    fixed = true;
-                }
-            });
-
-            // Fixing: a roaming support/adc getting classified as a jungler
-            if (team[BOTTOM_LANE].length === 1 && team[JUNGLE_ROLE].length === 2) {
-                var issueWithJungler = false;
-                team[JUNGLE_ROLE].forEach(function(jungler, index) {
-                    jungler.role = checkIsSupport(jungler) ? SUPPORT_ROLE : checkIsJungler(jungler) ? JUNGLE_ROLE : checkIsSupport(team[BOTTOM_LANE][0]) ? ADC_ROLE : undefined;
-
-                    if (jungler.role === SUPPORT_ROLE || jungler.role === ADC_ROLE) {
-                        team[BOTTOM_LANE].push(team[JUNGLE_ROLE].splice(index, 1));
-                    }
-
-                    if (!jungler.role) {
-                        // console.log('Issue with identifying in match:', matchEntry.matchId);
-                        // console.log('Person in question:', matchEntry.participantIdentities[jungler.participantId-1].player.summonerName);
-                        issueWithJungler = true;
-                    }
-                });
-
-                if (!issueWithJungler)
-                    fixed = true;
-                else {
-                    // console.log('Jungler issue game:', JSON.stringify(Object.keys(team).map(function(role) { return [role, team[role].length]; })));
-                    // team[TOP_LANE].forEach(function(topLaner) {
-                    //     console.log('Top laner:', matchEntry.participantIdentities[topLaner.participantId-1].player.summonerName);
-                    // });
-                }
-            }
-        }
-
-        if (flagged && !fixed) {
-            matchEntry.unclearRoles = true;
-            console.log('Unclassifiable:', JSON.stringify(Object.keys(team).map(function(role) { return [role, team[role].length]; })), '(', matchEntry.matchId, '- team:', teamId === '100' ? 'blue' : 'red', ')');
-        }
-
-        // console.log('after: ', JSON.stringify(Object.keys(team).map(function(role) { return [role, team[role].length]; })));
-    });
-}
-
 function compileData() {
     var limitStart = 0;
     var limit = Infinity;
@@ -345,9 +252,12 @@ function compileData() {
         })
         .then(function fetchMatches(matches) {
             matches = matches.slice(limitStart, limit);
+
             // var matches = [1761141257];
 
-            var matches = [];
+            var goodTeams = [];
+            var badTeams = [];
+            var array;
 
             // NUM_TOTAL_CHAMP_ENTRIES = matches.length * 10;
             // NUM_IDENTIFIED_ENTRIES = 0;
@@ -368,76 +278,100 @@ function compileData() {
                         var regionStr = obj.id;
 
                         parseSkillsAndBuys(matchEntry);
-                        parseRoles(matchEntry);
+                        parseTeams(matchEntry);
 
-                        // if (matchEntry.hasAfker || matchEntry.unclearRoles) return;
+                        Object.keys(matchEntry.teams).forEach(function handleTeam(teamId) {
+                            var team = matchEntry.teams[teamId];
+                            var teamData = [];
 
-                        matchEntry.participants.forEach(function handleParticipant(participant, i) {
-                            if (!participant.skills) return; // Ignore champs that haven't skilled anything (likely afk)
-                            
-                            if (matchEntry.hasAfker || matchEntry.unclearRoles)
-                                participant.role = globals.UNKNOWN_ROLE;
-
-                            var champId = participant.championId;
-
-                            if (participant.participantId != i+1) {
-                                throw new Error('Issue: The participant index (' + i + ') doesn\'t match the id (' + participant.participantId + ')');
+                            if (lanesAreProper(team)) {
+                                array = goodTeams;
+                            }
+                            else {
+                                array = badTeams;
                             }
 
-                            var masteries = participant.masteries ? convertArrayToObject(participant.masteries) : {};
-                            var masterySummary = participant.masteries ? extractMasterySummary(participant.masteries) : {};
+                            team.forEach(function handleParticipant(participant, i) {
+                                var champId = participant.championId;
 
-                            var runeTree = {};
-                            if (participant.runes) {
-                                participant.runes.forEach(function(rune) {
-                                    var runeType = runeStaticData[rune.runeId].type;
-                                    if (!(runeType in runeTree))
-                                        runeTree[runeType] = {};
+                                var masteries = participant.masteries ? convertArrayToObject(participant.masteries) : {};
+                                var masterySummary = participant.masteries ? extractMasterySummary(participant.masteries) : {};
 
-                                    runeTree[runeType][rune.runeId] = rune.rank;
+                                var runeTree = {};
+                                if (participant.runes) {
+                                    participant.runes.forEach(function(rune) {
+                                        var runeType = runeStaticData[rune.runeId].type;
+                                        if (!(runeType in runeTree))
+                                            runeTree[runeType] = {};
+
+                                        runeTree[runeType][rune.runeId] = rune.rank;
+                                    });
+                                }
+
+                                var finalBuild = [
+                                    participant.stats.item0,
+                                    participant.stats.item1,
+                                    participant.stats.item2,
+                                    participant.stats.item3,
+                                    participant.stats.item4,
+                                    participant.stats.item5,
+                                    participant.stats.item6
+                                ].sort();
+
+                                teamData.push({
+                                    champId:        participant.championId,
+                                    // winner:         participant.stats.winner,
+                                    masteryOff:     masterySummary.Offense,
+                                    masteryDef:     masterySummary.Defense,
+                                    masteryUti:     masterySummary.Utility,
+                                    role:           participant.role,
+                                    kills:          participant.stats.kills,
+                                    deaths:         participant.stats.deaths,
+                                    assists:        participant.stats.assists,
+                                    summoner1:      participant.spell1Id,
+                                    summoner2:      participant.spell2Id,
+                                    // matchId:        matchEntry.matchId,
+                                    // region:         regionStr,
+                                    finalBuild0:    finalBuild[0],
+                                    finalBuild1:    finalBuild[1],
+                                    finalBuild2:    finalBuild[2],
+                                    finalBuild3:    finalBuild[3],
+                                    finalBuild4:    finalBuild[4],
+                                    finalBuild5:    finalBuild[5],
+                                    finalBuild6:    finalBuild[6]
                                 });
-                            }
-
-                            matches.push({
-                                champId:        participant.championId,
-                                summonerName:   matchEntry.participantIdentities[i].player.summonerName,
-                                winner:         participant.stats.winner,
-                                runes:          runeTree,
-                                masteries:      masteries,
-                                masterySummary: masterySummary,
-                                role:           participant.role,
-                                kills:          participant.stats.kills,
-                                deaths:         participant.stats.deaths,
-                                assists:        participant.stats.assists,
-                                summonerSpells: [
-                                                    participant.spell1Id,
-                                                    participant.spell2Id
-                                                ],
-                                date:           matchEntry.matchCreation,
-                                skillOrder:     participant.skills,
-                                skillMaxOrder:  participant.skillMaxOrder,
-                                buyOrder:       participant.buys,
-                                matchId:        matchEntry.matchId,
-                                region:         regionStr
-                                // finalBuild:     [
-                                //                     participant.stats.item0,
-                                //                     participant.stats.item1,
-                                //                     participant.stats.item2,
-                                //                     participant.stats.item3,
-                                //                     participant.stats.item4,
-                                //                     participant.stats.item5,
-                                //                     participant.stats.item6
-                                //                 ],
                             });
+
+                            array.push(teamData);
                         });
                     }
                 })
                 .then(function constructObj() {
-                    return matches;
+                    return { good: goodTeams, bad: badTeams };
                 });
         })
-        .then(function saveData(dataArray) {
-            promise.save('data-compiled/data.json', JSON.stringify(dataArray));
+        .then(function saveData(dataObj) {
+            console.log('Saving');
+
+            var options = {
+                // sendHeaders: false,
+                separator: '\t'
+            }
+
+            var testDataWriter = csv(options);
+            var trainDataWriter = csv(options);
+            testDataWriter.pipe(fs.createWriteStream('data-output/test-data.tsv'));
+            trainDataWriter.pipe(fs.createWriteStream('data-output/train-data.tsv'));
+
+            dataObj.good.forEach(function writeOut(entry) {
+                trainDataWriter.write(flattenWithPrefixes(entry));
+            });
+            dataObj.bad.forEach(function writeOut(entry) {
+                testDataWriter.write(flattenWithPrefixes(entry));
+            });
+
+            trainDataWriter.end();
+            testDataWriter.end();
         })
         .catch(function(err) {
             console.log(err.stack);
