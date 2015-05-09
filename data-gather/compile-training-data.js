@@ -334,7 +334,7 @@ function compileData() {
                                 ].sort();
 
                                 teamData.push({
-                                    champId:        participant.championId,
+                                    // champId:        participant.championId,
                                     // winner:         participant.stats.winner,
                                     masteryOff:     masterySummary.Offense,
                                     masteryDef:     masterySummary.Defense,
