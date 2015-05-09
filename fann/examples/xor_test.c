@@ -26,6 +26,8 @@ int main()
 	fann_type *calc_out;
 	unsigned int i;
 	int ret = 0;
+	int numGood = 0,
+		numBad = 0;
 
 	struct fann *ann;
 	struct fann_train_data *data;
@@ -52,7 +54,7 @@ int main()
 #ifdef FIXEDFANN
 	data = fann_read_train_from_file("xor_fixed.data");
 #else
-	data = fann_read_train_from_file("xor.data");
+	data = fann_read_train_from_file("../../data-output/train-data.tsv");
 #endif
 
 	for(i = 0; i < fann_length_train_data(data); i++)
@@ -70,11 +72,26 @@ int main()
 			ret = -1;
 		}
 #else
-		printf("XOR test (%f, %f) -> %f, should be %f, difference=%f\n",
-			   data->input[i][0], data->input[i][1], calc_out[0], data->output[i][0],
-			   (float) fann_abs(calc_out[0] - data->output[i][0]));
+		printf("XOR test (%i) -> %f %f %f %f %f,\n        should be %f %f %f %f %f\n                  ",
+			   i,
+			   calc_out[0], calc_out[1], calc_out[2], calc_out[3], calc_out[4],
+			   data->output[i][0], data->output[i][1], data->output[i][2], data->output[i][3], data->output[i][4]);
+
+		for (unsigned int j = 0; j < 5; ++j) {
+			if ( (round(calc_out[j] * 4) / 4.0f) == data->output[i][j] ) {
+				printf("Good     ");
+				++numGood;
+			}
+			else {
+				printf("Bad      ");
+				++numBad;
+			}
+		}
+		printf("\n");
 #endif
 	}
+
+	printf("numGood: %i, numBad: %i, %%: %f\n", numGood, numBad, numGood / (float)(numGood + numBad));
 
 	printf("Cleaning up.\n");
 	fann_destroy_train(data);

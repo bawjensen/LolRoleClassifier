@@ -3,6 +3,22 @@ var csv         = require('csv-write-stream'),
     globals     = require('./helpers/globalConstants'),
     promise     = require('./helpers/promisedFunctions');
 
+var MIDDLE_LANE = 'middle',
+    JUNGLE_ROLE = 'jungle',
+    TOP_LANE = 'top',
+    BOTTOM_LANE = 'bottom',
+    ADC_ROLE = 'adc',
+    SUPPORT_ROLE = 'support';
+
+var ROLE_SIMPLIFIER = {};
+ROLE_SIMPLIFIER[TOP_LANE]       = 0 / 4;
+ROLE_SIMPLIFIER[JUNGLE_ROLE]    = 1 / 4;
+ROLE_SIMPLIFIER[MIDDLE_LANE]    = 2 / 4;
+ROLE_SIMPLIFIER[ADC_ROLE]       = 3 / 4;
+ROLE_SIMPLIFIER[SUPPORT_ROLE]   = 4 / 4;
+
+var SMITE_ID = 11;
+
 Array.prototype.extend = function (other_array) {
     other_array.forEach(function(v) { this.push(v); }, this);    
 };
@@ -25,16 +41,23 @@ function convertArrayToObject(runesOrMasteries) {
     return newObj;
 }
 
-function flattenWithPrefixes(arrays) {
-    var newObj = {};
+function flattenWithPrefixesAndRoles(arrays, preClassified) {
+    var inputObj = {
+        'p0role': '',
+        'p1role': '',
+        'p2role': '',
+        'p3role': '',
+        'p4role': ''
+    };
 
     arrays.forEach(function(entry, i) {
         for (var key in entry) {
-            newObj['p' + i + key] = entry[key];
+            if (key !== 'lane' && key !== 'role')
+                inputObj['p' + i + key] = entry[key];
         }
     });
 
-    return newObj;
+    return inputObj;
 }
 
 function extractMasterySummary(masteries) {
@@ -198,14 +221,6 @@ function parseTeams(matchEntry) {
     });
 }
 
-var MIDDLE_LANE = 'middle',
-    JUNGLE_ROLE = 'jungle',
-    TOP_LANE = 'top',
-    BOTTOM_LANE = 'bottom',
-    ADC_ROLE = 'adc',
-    SUPPORT_ROLE = 'support';
-
-var SMITE_ID = 11;
 function checkIsJungler(participant) {
     return (participant.spell1Id === SMITE_ID || participant.spell2Id === SMITE_ID);
 }
@@ -324,7 +339,6 @@ function compileData() {
                                     masteryOff:     masterySummary.Offense,
                                     masteryDef:     masterySummary.Defense,
                                     masteryUti:     masterySummary.Utility,
-                                    role:           participant.role,
                                     kills:          participant.stats.kills,
                                     deaths:         participant.stats.deaths,
                                     assists:        participant.stats.assists,
@@ -338,7 +352,10 @@ function compileData() {
                                     finalBuild3:    finalBuild[3],
                                     finalBuild4:    finalBuild[4],
                                     finalBuild5:    finalBuild[5],
-                                    finalBuild6:    finalBuild[6]
+                                    finalBuild6:    finalBuild[6],
+
+                                    lane:           participant.timeline.lane,
+                                    role:           participant.timeline.role
                                 });
                             });
 
@@ -354,20 +371,41 @@ function compileData() {
             console.log('Saving');
 
             var options = {
-                // sendHeaders: false,
-                separator: '\t'
+                sendHeaders: false,
+                separator: ' '
             }
 
-            var testDataWriter = csv(options);
             var trainDataWriter = csv(options);
-            testDataWriter.pipe(fs.createWriteStream('data-output/test-data.tsv'));
-            trainDataWriter.pipe(fs.createWriteStream('data-output/train-data.tsv'));
+            var testDataWriter = csv(options);
 
-            dataObj.good.forEach(function writeOut(entry) {
-                trainDataWriter.write(flattenWithPrefixes(entry));
+            var trainDataFile = fs.createWriteStream('../data-output/train-data.tsv');
+            var testDataFile = fs.createWriteStream('../data-output/test-data.tsv');
+
+            trainDataFile.write(
+                '' + dataObj.good.length + ' ' +
+                (5 * (Object.keys(dataObj.good[0][0]).length - 2) /*adjust for role/lane*/) +
+                ' ' + '5\n');
+
+            trainDataWriter.pipe(trainDataFile);
+            testDataWriter.pipe(testDataFile);
+
+            dataObj.good.forEach(function writeOut(arrays) {
+                trainDataWriter.write(flattenWithPrefixesAndRoles(arrays)); // Training data is pre-classified
+
+                var outputObj = {};
+                arrays.forEach(function(entry, i) {
+                    if (entry.lane !== BOTTOM_LANE) {
+                        outputObj['p' + i + 'role'] = ROLE_SIMPLIFIER[entry.lane.toLowerCase()];
+                    }
+                    else {
+                        outputObj['p' + i + 'role'] = ROLE_SIMPLIFIER[entry.role == 'DUO_CARRY' ? 'adc' : 'support'];
+                    }
+                });
+
+                trainDataWriter.write(outputObj);
             });
-            dataObj.bad.forEach(function writeOut(entry) {
-                testDataWriter.write(flattenWithPrefixes(entry));
+            dataObj.bad.forEach(function writeOut(arrays) {
+                testDataWriter.write(flattenWithPrefixesAndRoles(arrays));
             });
 
             trainDataWriter.end();
