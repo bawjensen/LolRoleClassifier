@@ -40,10 +40,10 @@ int main(int argc, char** argv) {
     unsigned int num_layers = 3;
     const unsigned int num_input = 80;
     const unsigned int num_neurons_hidden = 50;
-    const unsigned int num_output = 5;
+    const unsigned int num_output = 25;
     // const float desired_error = (const float) 0.075;
-    const float desired_error = (const float) 0.015;
-    const unsigned int max_epochs = 10000;
+    const float desired_error = (const float) 0.02;
+    const unsigned int max_epochs = 1000;
     const unsigned int epochs_between_reports = 100;
     unsigned int* layers;
 
@@ -89,12 +89,12 @@ int main(int argc, char** argv) {
     // fann_set_activation_steepness_output(ann, 0.5f); // Useless for FANN_LINEAR
 
     fann_set_activation_function_hidden(ann, FANN_SIGMOID_SYMMETRIC);
-    // fann_set_activation_function_output(ann, FANN_SIGMOID_SYMMETRIC);
-    fann_set_activation_function_output(ann, FANN_LINEAR);
+    fann_set_activation_function_output(ann, FANN_SIGMOID);
+    // fann_set_activation_function_output(ann, FANN_LINEAR);
 
-    fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
-    // fann_set_train_stop_function(ann, FANN_STOPFUNC_BIT);
-    // fann_set_bit_fail_limit(ann, 0.01f);
+    // fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
+    fann_set_train_stop_function(ann, FANN_STOPFUNC_BIT);
+    fann_set_bit_fail_limit(ann, 0.1f);
 
     // fann_set_training_algorithm(ann, FANN_TRAIN_INCREMENTAL);
     // fann_set_training_algorithm(ann, FANN_TRAIN_BATCH);

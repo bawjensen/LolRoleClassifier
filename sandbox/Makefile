@@ -1,9 +1,9 @@
 # This makefile is on purpose not made with configure, to show how to use the library
-# The make file requires that the fann library is installed (see ../README)
+# The make file requires that the fann library is installed, and is linked to with the -lfann flag
 
 GCC=g++
 
-TARGETS = xor_train xor_test
+TARGETS = trainer tester
 
 all: $(TARGETS)
 

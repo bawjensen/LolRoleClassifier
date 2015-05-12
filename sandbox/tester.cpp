@@ -62,13 +62,13 @@ int main()
                calc_out[0], calc_out[1], calc_out[2], calc_out[3], calc_out[4],
                data->output[i][0], data->output[i][1], data->output[i][2], data->output[i][3], data->output[i][4]);
 
-        for (unsigned int j = 0; j < 5; ++j) {
+        for (unsigned int j = 0; j < 25; ++j) {
             if ( (round(calc_out[j] * 4) / 4.0f) == data->output[i][j] ) {
-                printf("Good     ");
+                // printf("Good     ");
                 ++numGood;
             }
             else {
-                printf("Bad      ");
+                // printf("Bad      ");
                 ++numBad;
             }
         }

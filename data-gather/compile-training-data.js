@@ -11,11 +11,16 @@ var MIDDLE_LANE = 'middle',
     SUPPORT_ROLE = 'support';
 
 var ROLE_SIMPLIFIER = {};
-ROLE_SIMPLIFIER[TOP_LANE]       = 0 / 4;
-ROLE_SIMPLIFIER[JUNGLE_ROLE]    = 1 / 4;
-ROLE_SIMPLIFIER[MIDDLE_LANE]    = 2 / 4;
-ROLE_SIMPLIFIER[ADC_ROLE]       = 3 / 4;
-ROLE_SIMPLIFIER[SUPPORT_ROLE]   = 4 / 4;
+// ROLE_SIMPLIFIER[TOP_LANE]       = 0 / 4;
+// ROLE_SIMPLIFIER[JUNGLE_ROLE]    = 1 / 4;
+// ROLE_SIMPLIFIER[MIDDLE_LANE]    = 2 / 4;
+// ROLE_SIMPLIFIER[ADC_ROLE]       = 3 / 4;
+// ROLE_SIMPLIFIER[SUPPORT_ROLE]   = 4 / 4;
+ROLE_SIMPLIFIER[TOP_LANE]       = '1 0 0 0 0';
+ROLE_SIMPLIFIER[JUNGLE_ROLE]    = '0 1 0 0 0';
+ROLE_SIMPLIFIER[MIDDLE_LANE]    = '0 0 1 0 0';
+ROLE_SIMPLIFIER[ADC_ROLE]       = '0 0 0 1 0';
+ROLE_SIMPLIFIER[SUPPORT_ROLE]   = '0 0 0 0 1';
 
 var SMITE_ID = 11;
 
@@ -42,13 +47,13 @@ function convertArrayToObject(runesOrMasteries) {
 }
 
 function flattenWithPrefixesAndRoles(arrays, preClassified) {
-    var inputObj = {
+    var inputObj = {/*
         'p0role': '',
         'p1role': '',
         'p2role': '',
         'p3role': '',
         'p4role': ''
-    };
+    */};
 
     arrays.forEach(function(entry, i) {
         for (var key in entry) {
@@ -258,11 +263,22 @@ function compileData() {
         console.log('Limiting to ' + limit + ' matches');
     }
 
-    var runeStaticData; // Somewhat-global variable
+    // Somewhat-global variable
+    var runeStaticData;
+    var champStaticData;
+    var champIdTranslator;
 
     promise.readJson('data-compiled/runes.json')
-        .then(function loadDynamic(runeStatic) {
+        .then(function loadChampData(runeStatic) {
             runeStaticData = runeStatic;
+            return promise.readJson('dragontail/current/data/en_US/champion.json');
+        })
+        .then(function loadChampTranslator(champStatic) {
+            champStaticData = champStatic.data;
+            return promise.readJson('data-compiled/champsByIdNum.json');
+        })
+        .then(function loadDynamic(translator) {
+            champIdTranslator = translator;
             return promise.readJson('data-compiled/matches.json');
         })
         .then(function fetchMatches(matches) {
@@ -333,9 +349,23 @@ function compileData() {
                                     participant.stats.item6
                                 ].sort();
 
+                                if (!(champStaticData[champIdTranslator[participant.championId]])) {
+                                    console.log(participant.championId);
+                                }
+
+                                var champTags = champStaticData[champIdTranslator[participant.championId]].tags;
+
                                 teamData.push({
-                                    // champId:        participant.championId,
                                     // winner:         participant.stats.winner,
+                                    // matchId:        matchEntry.matchId,
+                                    // region:         regionStr,
+                                    // champId:        participant.championId,
+                                    champAssassin:  champTags.indexOf('Assassin')   > -1 ? 1 : 0,
+                                    champFighter:   champTags.indexOf('Fighter')    > -1 ? 1 : 0,
+                                    champMage:      champTags.indexOf('Mage')       > -1 ? 1 : 0,
+                                    champMarksman:  champTags.indexOf('Marksman')   > -1 ? 1 : 0,
+                                    champSupport:   champTags.indexOf('Support')    > -1 ? 1 : 0,
+                                    champTank:      champTags.indexOf('Tank')       > -1 ? 1 : 0,
                                     masteryOff:     masterySummary.Offense,
                                     masteryDef:     masterySummary.Defense,
                                     masteryUti:     masterySummary.Utility,
@@ -344,8 +374,6 @@ function compileData() {
                                     assists:        participant.stats.assists,
                                     summoner1:      participant.spell1Id,
                                     summoner2:      participant.spell2Id,
-                                    // matchId:        matchEntry.matchId,
-                                    // region:         regionStr,
                                     finalBuild0:    finalBuild[0],
                                     finalBuild1:    finalBuild[1],
                                     finalBuild2:    finalBuild[2],
@@ -384,7 +412,7 @@ function compileData() {
             trainDataFile.write(
                 '' + dataObj.good.length + ' ' +
                 (5 * (Object.keys(dataObj.good[0][0]).length - 2) /*adjust for role/lane*/) +
-                ' ' + '5\n');
+                ' ' + '25\n');
 
             trainDataWriter.pipe(trainDataFile);
             testDataWriter.pipe(testDataFile);
@@ -392,17 +420,16 @@ function compileData() {
             dataObj.good.forEach(function writeOut(arrays) {
                 trainDataWriter.write(flattenWithPrefixesAndRoles(arrays)); // Training data is pre-classified
 
-                var outputObj = {};
                 arrays.forEach(function(entry, i) {
                     if (entry.lane !== BOTTOM_LANE) {
-                        outputObj['p' + i + 'role'] = ROLE_SIMPLIFIER[entry.lane.toLowerCase()];
+                        trainDataFile.write(ROLE_SIMPLIFIER[entry.lane.toLowerCase()]);
                     }
                     else {
-                        outputObj['p' + i + 'role'] = ROLE_SIMPLIFIER[entry.role == 'DUO_CARRY' ? 'adc' : 'support'];
+                        trainDataFile.write(ROLE_SIMPLIFIER[entry.role == 'DUO_CARRY' ? 'adc' : 'support']);
                     }
+                    trainDataFile.write(' ');
                 });
-
-                trainDataWriter.write(outputObj);
+                trainDataFile.write('\n');
             });
             dataObj.bad.forEach(function writeOut(arrays) {
                 testDataWriter.write(flattenWithPrefixesAndRoles(arrays));
