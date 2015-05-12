@@ -11,6 +11,7 @@ var MIDDLE_LANE = 'middle',
     SUPPORT_ROLE = 'support';
 
 var ROLE_SIMPLIFIER = {};
+var OUTOUT_LENGTH = 5;
 // ROLE_SIMPLIFIER[TOP_LANE]       = 0 / 4;
 // ROLE_SIMPLIFIER[JUNGLE_ROLE]    = 1 / 4;
 // ROLE_SIMPLIFIER[MIDDLE_LANE]    = 2 / 4;
@@ -412,7 +413,7 @@ function compileData() {
             trainDataFile.write(
                 '' + dataObj.good.length + ' ' +
                 (5 * (Object.keys(dataObj.good[0][0]).length - 2) /*adjust for role/lane*/) +
-                ' ' + '25\n');
+                ' ' + 5 * OUTOUT_LENGTH + '\n');
 
             trainDataWriter.pipe(trainDataFile);
             testDataWriter.pipe(testDataFile);
