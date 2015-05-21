@@ -36,7 +36,7 @@ int main()
 
     printf("Creating network.\n");
 
-    ann = fann_create_from_file("xor_float.net");
+    ann = fann_create_from_file("trained.net");
 
     if(!ann)
     {

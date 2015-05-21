@@ -11,7 +11,7 @@ var MIDDLE_LANE = 'middle',
     SUPPORT_ROLE = 'support';
 
 var ROLE_SIMPLIFIER = {};
-var OUTOUT_LENGTH = 5;
+var OUTOUT_LENGTH = 1;
 // ROLE_SIMPLIFIER[TOP_LANE]       = 0 / 4;
 // ROLE_SIMPLIFIER[JUNGLE_ROLE]    = 1 / 4;
 // ROLE_SIMPLIFIER[MIDDLE_LANE]    = 2 / 4;
@@ -421,15 +421,30 @@ function compileData() {
             dataObj.good.forEach(function writeOut(arrays) {
                 trainDataWriter.write(flattenWithPrefixesAndRoles(arrays)); // Training data is pre-classified
 
-                arrays.forEach(function(entry, i) {
-                    if (entry.lane !== BOTTOM_LANE) {
-                        trainDataFile.write(ROLE_SIMPLIFIER[entry.lane.toLowerCase()]);
-                    }
-                    else {
-                        trainDataFile.write(ROLE_SIMPLIFIER[entry.role == 'DUO_CARRY' ? 'adc' : 'support']);
-                    }
-                    trainDataFile.write(' ');
+                var output = ['0', '0', '0', '0', '0'];
+
+                var adcIndex = arrays.reduce(function(adcIndex, currValue, currIndex) {
+                    if (currValue.lane === BOTTOM_LANE && currValue.role === 'DUO_CARRY')
+                        return currIndex;
+                    else
+                        return adcIndex;
                 });
+
+                console.log(arrays.map(function(entry) { return [entry.lane, entry.role]; }));
+
+                output[adcIndex] = '1';
+
+                trainDataFile.write(output.join(' '));
+
+                // arrays.forEach(function(entry, i) {
+                //     if (entry.lane !== BOTTOM_LANE) {
+                //         trainDataFile.write(ROLE_SIMPLIFIER[entry.lane.toLowerCase()]);
+                //     }
+                //     else {
+                //         trainDataFile.write(ROLE_SIMPLIFIER[entry.role === 'DUO_CARRY' ? 'adc' : 'support']);
+                //     }
+                //     trainDataFile.write(' ');
+                // });
                 trainDataFile.write('\n');
             });
             dataObj.bad.forEach(function writeOut(arrays) {
