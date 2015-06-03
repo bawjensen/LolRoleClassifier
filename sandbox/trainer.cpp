@@ -38,13 +38,13 @@ int main(int argc, char** argv) {
     printf("Number of arguments: %i\n", argc);
 
     unsigned int num_layers = 3;
-    const unsigned int num_input = 105;
+    const unsigned int num_input = 6;
     const unsigned int num_neurons_hidden = 50;
-    const unsigned int num_output = 5;
+    const unsigned int num_output = 1;
     // const float desired_error = (const float) 0.075;
-    const float desired_error = (const float) 0.02;
-    const unsigned int max_epochs = 1000;
-    const unsigned int epochs_between_reports = 100;
+    const float desired_error = (const float) 0.0001;
+    const unsigned int max_epochs = 10000;
+    const unsigned int epochs_between_reports = 1000;
     unsigned int* layers;
 
     if (argc > 1) {

@@ -57,20 +57,19 @@ int main()
 
         calc_out = fann_test(ann, data->input[i], data->output[i]);
 
-        printf("XOR test (%i) -> %f %f %f %f %f,\n        should be %f %f %f %f %f\n                  ",
+        printf("XOR test (%i) -> %.0f %.0f %.0f %.0f %.0f %.0f\n         %f vs %f - ",
                i,
-               calc_out[0], calc_out[1], calc_out[2], calc_out[3], calc_out[4],
-               data->output[i][0], data->output[i][1], data->output[i][2], data->output[i][3], data->output[i][4]);
+               data->input[i][0], data->input[i][1], data->input[i][2], data->input[i][3], data->input[i][4], data->input[i][5], 
+               calc_out[0],
+               data->output[i][0]);
 
-        for (unsigned int j = 0; j < 25; ++j) {
-            if ( (round(calc_out[j] * 4) / 4.0f) == data->output[i][j] ) {
-                // printf("Good     ");
-                ++numGood;
-            }
-            else {
-                // printf("Bad      ");
-                ++numBad;
-            }
+        if ( round(calc_out[0]) == data->output[i][0] ) {
+            printf("Good");
+            ++numGood;
+        }
+        else {
+            printf("Bad");
+            ++numBad;
         }
 
         printf("\n");
