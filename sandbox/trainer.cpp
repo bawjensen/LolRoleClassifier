@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
     printf("Number of arguments: %i\n", argc);
 
     unsigned int num_layers = 3;
-    const unsigned int num_input = 6;
+    const unsigned int num_input = 8;
     const unsigned int num_neurons_hidden = 50;
     const unsigned int num_output = 1;
     // const float desired_error = (const float) 0.075;
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
 
     // fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
     fann_set_train_stop_function(ann, FANN_STOPFUNC_BIT);
-    fann_set_bit_fail_limit(ann, 0.1f);
+    // fann_set_bit_fail_limit(ann, 0.1f); // Default: 0.5f(?)
 
     // fann_set_training_algorithm(ann, FANN_TRAIN_INCREMENTAL);
     // fann_set_training_algorithm(ann, FANN_TRAIN_BATCH);

@@ -412,11 +412,26 @@ function compileData() {
 
             trainDataFile.write(
                 '' + dataObj.good.length + ' ' +
-                (Object.keys(dataObj.good[0]).length - 2 /*adjust for role/lane*/) +
+                (Object.keys(dataObj.good[0]).length) +
                 ' ' + OUTPUT_LENGTH + '\n');
 
             trainDataWriter.pipe(trainDataFile);
             testDataWriter.pipe(testDataFile);
+
+            var laneTranslator = {
+                'top': 0,
+                'jungle': 1,
+                'middle': 2,
+                'bottom': 3
+            }
+
+            var roleTranslator = {
+                'NONE': 0,
+                'SOLO': 1,
+                'DUO': 2,
+                'DUO_CARRY': 3,
+                'DUO_SUPPORT': 4
+            }
 
             dataObj.good.forEach(function writeOut(entry) {
 
@@ -433,8 +448,13 @@ function compileData() {
 
                 // output[adcIndex] = '1';
                 
-                delete entry.lane;
-                delete entry.role;
+                // delete entry.lane;
+                // delete entry.role;
+
+                if (entry.lane in laneTranslator)
+                    entry.lane = laneTranslator[entry.lane];
+                if (entry.role in roleTranslator)
+                    entry.role = roleTranslator[entry.role];
 
                 trainDataWriter.write(entry); // Training data is pre-classified
                 trainDataFile.write(output);

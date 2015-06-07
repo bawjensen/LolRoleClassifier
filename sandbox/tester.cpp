@@ -57,9 +57,9 @@ int main()
 
         calc_out = fann_test(ann, data->input[i], data->output[i]);
 
-        printf("XOR test (%i) -> %.0f %.0f %.0f %.0f %.0f %.0f\n         %f vs %f - ",
+        printf("XOR test (%i) -> %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f\n         %f vs %f - ",
                i,
-               data->input[i][0], data->input[i][1], data->input[i][2], data->input[i][3], data->input[i][4], data->input[i][5], 
+               data->input[i][0], data->input[i][1], data->input[i][2], data->input[i][3], data->input[i][4], data->input[i][5], data->input[i][6], data->input[i][7], 
                calc_out[0],
                data->output[i][0]);
 
